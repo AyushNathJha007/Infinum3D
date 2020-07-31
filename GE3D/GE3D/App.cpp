@@ -54,7 +54,8 @@ void App::DoFrame() //Contains top level of the game logic
 {
 	const float c = sin(timer.Peek()) / 2.0f + 0.5f;
 	window.Gfx().ClearBuffer(c, c, 1.0f);
-	/*Test to check presentation stuff of GraphicsSetup*/
+	/*Test to check Triangle creation*/
+	window.Gfx().DrawTriangleTest();
 	window.Gfx().EndFrame();
 }
 	

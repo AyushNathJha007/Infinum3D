@@ -1,7 +1,9 @@
 #include "GraphicsSetup.h"
 #include "dxerr.h"
 #include<sstream>
+#include<d3dcompiler.h>
 
+#pragma comment(lib,"D3DCompiler.lib")	//Can be used to compile shaders at runtime; but we will be using for shader loading function
 #pragma comment(lib,"d3d11.lib")
 
 //Additional Macros for handling GraphicsSetup exception throw stuff (Now also includes DXGI Info)
@@ -12,10 +14,12 @@
 #define GFX_EXCEPT(HR) GraphicsSetup::HRException( __LINE__,__FILE__,(HR),infoManager.GetMessages() )
 #define GFX_THROW_INFO(hrcall) infoManager.Set(); if( FAILED( HR = (hrcall) ) ) throw GFX_EXCEPT(HR)
 #define GFX_DEVICE_REMOVED_EXCEPT(HR) GraphicsSetup::DeviceRemovedException( __LINE__,__FILE__,(HR),infoManager.GetMessages() )
+#define GFX_THROW_INFO_ONLY(call) infoManager.Set(); (call); {auto v=infoManager.GetMessages(); if(!v.empty()){throw GraphicsSetup::InfoOnlyException(__LINE__,__FILE__,v);}}
 #else
 #define GFX_EXCEPT(HR) GraphicsSetup::HRException( __LINE__,__FILE__,(HR) )
 #define GFX_THROW_INFO(hrcall) GFX_THROW_NOINFO(hrcall)
 #define GFX_DEVICE_REMOVED_EXCEPT(HR) GraphicsSetup::DeviceRemovedException(__LINE__,__FILE__,(HR))
+#define GFX_THROW_INFO_ONLY(call) (call)
 #endif
 
 namespace wrl = Microsoft::WRL;
@@ -114,6 +118,52 @@ void GraphicsSetup::ClearBuffer(float red, float green, float blue) noexcept
 	
 }
 
+void GraphicsSetup::DrawTriangleTest()
+{
+	namespace wrl = Microsoft::WRL;
+	HRESULT HR;
+	struct Vertex {	//Structure of a vertex we'll be using(x and y coordinates)
+		float x;
+		float y;
+	};
+
+	//Create vertex buffer (a 2D triangle)
+	struct Vertex VerticesData[] = { (0.0f,0.5f),(0.5f,-0.5f),(-0.5f,-0.5f) };
+	wrl::ComPtr<ID3D11Buffer> pVertexBuffer;
+	D3D11_BUFFER_DESC bd = {};
+
+	bd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+	bd.Usage = D3D11_USAGE_DEFAULT;
+	bd.CPUAccessFlags = 0u;
+	bd.MiscFlags = 0u;
+	bd.ByteWidth = sizeof(VerticesData);
+	bd.StructureByteStride = sizeof(Vertex);
+
+	D3D11_SUBRESOURCE_DATA sd = {};
+
+	sd.pSysMem = VerticesData;
+
+	GFX_THROW_INFO(pDevice->CreateBuffer(&bd, &sd, &pVertexBuffer));
+
+	//Bind VertexBuffer to pipeline
+	const UINT stride = sizeof(Vertex);
+	const UINT offset = 0u;
+	//IASetVertexBuffers() sets the VertexBuffer.
+	//Using this single function, we can set multiple vertex buffers.
+	pContext->IASetVertexBuffers(0u,1u,&pVertexBuffer,&stride,&offset); //The 2 initial letters correspond to the stage in the pipeline. IA stands for Input Assembler.
+	
+	//Create Vertex Buffer
+	wrl::ComPtr<ID3D11VertexShader> pVertexShader;
+	wrl::ComPtr<ID3DBlob> pBlob;
+	GFX_THROW_INFO(D3DReadFileToBlob(L"Vertex_Shader.cso", &pBlob));	//.cso -> Compiled Shader Object
+	GFX_THROW_INFO(pDevice->CreateVertexShader(pBlob->GetBufferPointer(), pBlob->GetBufferSize(), nullptr, &pVertexShader));
+
+	//Bind the Vertex Shader to the pipeline
+	pContext->VSSetShader(pVertexShader.Get(), nullptr, 0u);
+	
+	GFX_THROW_INFO_ONLY(pContext->Draw((UINT)std::size(VerticesData), 0u)); //Takes in parameters-> Number of vertices to draw,and the start vertex (vertices numbered as 0,1,2,..)
+}
+
 
 // GraphicsSetup exception stuff
 GraphicsSetup::HRException::HRException(int line, const char * file, HRESULT hr, std::vector<std::string> infoMsgs) noexcept
@@ -183,4 +233,46 @@ std::string GraphicsSetup::HRException::GetErrorInfo() const noexcept
 const char* GraphicsSetup::DeviceRemovedException::GetType() const noexcept
 {
 	return "Infinum GraphicsSetup Exception [Device Removed] (DXGI_ERROR_DEVICE_REMOVED)";
+}
+
+GraphicsSetup::InfoOnlyException::InfoOnlyException(int line, const char * file, std::vector<std::string> infoMsgs) noexcept
+	:
+	Exception(line, file)
+	
+{
+	// join all info messages with newlines into single string
+	for (const auto& m : infoMsgs)
+	{
+		info += m;
+		info.push_back('\n');
+	}
+	// remove final newline if exists
+	if (!info.empty())
+	{
+		info.pop_back();
+	}
+}
+
+const char* GraphicsSetup::InfoOnlyException::what() const noexcept
+{
+	std::ostringstream oss;
+	oss << GetType() << std::endl;
+	//If we have anything in info queue, it will also be displayed
+	if (!info.empty())
+	{
+		oss << "\n[Error Info]\n" << GetErrorInfo() << std::endl << std::endl;
+	}
+	oss << GetOriginString();
+	whatBuffer = oss.str();
+	return whatBuffer.c_str();
+}
+
+const char* GraphicsSetup::InfoOnlyException::GetType() const noexcept
+{
+	return "Infinum GraphicsSetup Exception";
+}
+
+std::string GraphicsSetup::InfoOnlyException::GetErrorInfo() const noexcept
+{
+	return info;
 }
