@@ -128,7 +128,7 @@ void GraphicsSetup::DrawTriangleTest()
 	};
 
 	//Create vertex buffer (a 2D triangle)
-	struct Vertex VerticesData[] = { (0.0f,0.5f),(0.5f,-0.5f),(-0.5f,-0.5f) };
+	const Vertex VerticesData[] = { {0.0f,0.5f},{0.5f,-0.5f},{-0.5f,-0.5f} };
 	wrl::ComPtr<ID3D11Buffer> pVertexBuffer;
 	D3D11_BUFFER_DESC bd = {};
 
@@ -150,16 +150,69 @@ void GraphicsSetup::DrawTriangleTest()
 	const UINT offset = 0u;
 	//IASetVertexBuffers() sets the VertexBuffer.
 	//Using this single function, we can set multiple vertex buffers.
-	pContext->IASetVertexBuffers(0u,1u,&pVertexBuffer,&stride,&offset); //The 2 initial letters correspond to the stage in the pipeline. IA stands for Input Assembler.
+	pContext->IASetVertexBuffers(0u,1u,pVertexBuffer.GetAddressOf(),&stride,&offset); //The 2 initial letters correspond to the stage in the pipeline. IA stands for Input Assembler.
 	
+	/*We create Pixel Buffer first then Vertex Buffer. Because we don't want pBlob data to be overwritten by
+	Pixel Shader Byte Code because the pBlob data consisting of Vertex Shader Byte Code is later on
+	used while creation of Input Layout.*/
+
+	//Create Pixel Buffer
+	wrl::ComPtr<ID3D11PixelShader> pPixelShader;
+	wrl::ComPtr<ID3DBlob> pBlob;
+	GFX_THROW_INFO(D3DReadFileToBlob(L"Pixel_Shader.cso", &pBlob));	//.cso -> Compiled Shader Object
+	GFX_THROW_INFO(pDevice->CreatePixelShader(pBlob->GetBufferPointer(), pBlob->GetBufferSize(), nullptr, &pPixelShader));
+
+	//Bind the Pixel Shader to the pipeline
+	pContext->PSSetShader(pPixelShader.Get(), nullptr, 0u);
+
 	//Create Vertex Buffer
 	wrl::ComPtr<ID3D11VertexShader> pVertexShader;
-	wrl::ComPtr<ID3DBlob> pBlob;
+	
 	GFX_THROW_INFO(D3DReadFileToBlob(L"Vertex_Shader.cso", &pBlob));	//.cso -> Compiled Shader Object
 	GFX_THROW_INFO(pDevice->CreateVertexShader(pBlob->GetBufferPointer(), pBlob->GetBufferSize(), nullptr, &pVertexShader));
 
 	//Bind the Vertex Shader to the pipeline
 	pContext->VSSetShader(pVertexShader.Get(), nullptr, 0u);
+
+	
+
+	//Create an input layout object for vertex, and bind it to our pipeline
+	wrl::ComPtr<ID3D11InputLayout> pInputLayout;
+	//A descriptor is needed to describe the pInputLayout.
+	//The descriptor is actually an array of descriptors, as shown below. So, every element
+	//in the "Vertex" will have one member as a descriptor in the array of descriptors.
+	//In our case, the "Vertex" has two elements x and y of type float. But in terms of 
+	//pixel shader, they can be lumped as a single entity, depicting position. So, only one member.
+	const D3D11_INPUT_ELEMENT_DESC ied[] =
+	{
+		{"Position",0,DXGI_FORMAT_R32G32_FLOAT,0,0,D3D11_INPUT_PER_VERTEX_DATA,0},
+		//The first two parameters represent Semantic name and Semantic Index.
+		//For this, refer to the Vertex Shader hlsl file. We have only one semantic named
+		//"Position" and it is at index 0.
+		//The third parameter tells us the type of data is in the element. R32G32_FLOAT tells
+		//that we have two 32 bit floats (x and y).
+	};
+
+	GFX_THROW_INFO(pDevice->CreateInputLayout(ied, (UINT)std::size(ied), pBlob->GetBufferPointer(), pBlob->GetBufferSize(), &pInputLayout));
+
+	//Bind Vertex Layout to our pipeline
+	pContext->IASetInputLayout(pInputLayout.Get());
+
+	//The below function binds the render target
+	pContext->OMSetRenderTargets(1u, pTarget.GetAddressOf(), nullptr);
+
+	//The below function sets the primitive topology to triangle vertices
+	pContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+	//We need to configure the viewport for rasterizing
+	D3D11_VIEWPORT vport;
+	vport.Width = 800;
+	vport.Height = 600;
+	vport.MinDepth = 0;
+	vport.MaxDepth = 1;
+	vport.TopLeftX = 0;
+	vport.TopLeftY = 0;
+	pContext->RSSetViewports(1u, &vport);
 	
 	GFX_THROW_INFO_ONLY(pContext->Draw((UINT)std::size(VerticesData), 0u)); //Takes in parameters-> Number of vertices to draw,and the start vertex (vertices numbered as 0,1,2,..)
 }
