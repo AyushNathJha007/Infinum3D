@@ -42,14 +42,19 @@ public:
 	~GraphicsSetup()=default;
 	void EndFrame(); //This will perform the operation of presenting Back Buffer To Front Buffer(known as flipping)
 	void ClearBuffer(float red, float green, float blue) noexcept;
+	void DrawTriangleTest()
+	{
+		
+		pContext->Draw(3u, 0u); //Takes in parameters-> Number of vertices to draw,and the start vertex (vertices numbered as 0,1,2,..)
+	}
 	
 private:
 #ifndef NDEBUG	//DxgiInfoManager will be used, only when we are in debug mode. In production/release, it won't be used
 	DxgiInfoManager infoManager;
 #endif
 	//All previous declarations exchanged with ComPtr
-	Microsoft::WRL::ComPtr<ID3D11Device> pDevice;
+	Microsoft::WRL::ComPtr<ID3D11Device> pDevice;	//Used for allocating the device(setting it up)
 	Microsoft::WRL::ComPtr<IDXGISwapChain> pSwap;
-	Microsoft::WRL::ComPtr<ID3D11DeviceContext> pContext;
+	Microsoft::WRL::ComPtr<ID3D11DeviceContext> pContext; //Used for configuring a pipeline in exceuting or issuing rendering commands
 	Microsoft::WRL::ComPtr<ID3D11RenderTargetView> pTarget;
 };
