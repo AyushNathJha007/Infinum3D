@@ -3,7 +3,7 @@
 //It usually doesn't need the coordinate of a pixel in screen space to accomplish this task.
 //Hence, the function for pixel shader has no input values like position of pixel.
 
-float4 main() : SV_Target //SystemValue_Target-> this means Render Target
+float4 main(float3 color:Color) : SV_Target //SystemValue_Target-> this means Render Target
 {
-	return float4(1.0f,1.0f,1.0f,1.0f); //Output the color-> RGBA
+	return float4(color,1.0f); //Output the color-> RGBA
 }

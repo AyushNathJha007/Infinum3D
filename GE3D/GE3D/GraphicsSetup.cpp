@@ -125,10 +125,16 @@ void GraphicsSetup::DrawTriangleTest()
 	struct Vertex {	//Structure of a vertex we'll be using(x and y coordinates)
 		float x;
 		float y;
+		unsigned char r;
+		unsigned char g;
+		unsigned char b;
+		unsigned char a;
 	};
 
 	//Create vertex buffer (a 2D triangle)
-	const Vertex VerticesData[] = { {0.0f,0.5f},{0.5f,-0.5f},{-0.5f,-0.5f} };
+	const Vertex VerticesData[] = { {0.0f,0.5f,255,0,0,0},{0.5f,-0.5f,0,255,0,0},{-0.5f,-0.5f,0,0,255,0}	//These vertices, when taken in this order, are clockwise winded. So, the pipeline won't do back face culling for this.
+	//{0.5,0.5},{-0.5,0.5} ,{0.0,-0.5}	//These vertices are binded in anticlockwise direction. Hence, BackFaceCulling is done by pipeline by default.
+	};
 	wrl::ComPtr<ID3D11Buffer> pVertexBuffer;
 	D3D11_BUFFER_DESC bd = {};
 
@@ -185,12 +191,15 @@ void GraphicsSetup::DrawTriangleTest()
 	//pixel shader, they can be lumped as a single entity, depicting position. So, only one member.
 	const D3D11_INPUT_ELEMENT_DESC ied[] =
 	{
-		{"Position",0,DXGI_FORMAT_R32G32_FLOAT,0,0,D3D11_INPUT_PER_VERTEX_DATA,0},
+		{"Position",0,DXGI_FORMAT_R32G32_FLOAT,0,0,D3D11_INPUT_PER_VERTEX_DATA,0}, //Tells the position of the vertex
 		//The first two parameters represent Semantic name and Semantic Index.
 		//For this, refer to the Vertex Shader hlsl file. We have only one semantic named
 		//"Position" and it is at index 0.
 		//The third parameter tells us the type of data is in the element. R32G32_FLOAT tells
 		//that we have two 32 bit floats (x and y).
+		{"Color",0,DXGI_FORMAT_R8G8B8A8_UNORM,0,D3D11_APPEND_ALIGNED_ELEMENT,D3D11_INPUT_PER_VERTEX_DATA,0}, //Tells the color of the vertex
+		//UNORM normalizes the value to full range of input type
+		//i.e, an input of 255, when converted to float will represent 1.0 and vice versa
 	};
 
 	GFX_THROW_INFO(pDevice->CreateInputLayout(ied, (UINT)std::size(ied), pBlob->GetBufferPointer(), pBlob->GetBufferSize(), &pInputLayout));
