@@ -122,17 +122,24 @@ void GraphicsSetup::DrawTriangleTest()
 {
 	namespace wrl = Microsoft::WRL;
 	HRESULT HR;
+	//Index Drawing->Specify the set of vertices once, then use a set of indexes to select them in some order to draw stuff
 	struct Vertex {	//Structure of a vertex we'll be using(x and y coordinates)
-		float x;
-		float y;
-		unsigned char r;
-		unsigned char g;
-		unsigned char b;
-		unsigned char a;
+		struct {
+			float x;
+			float y;
+		}pos;
+		struct {
+			unsigned char r;
+			unsigned char g;
+			unsigned char b;
+			unsigned char a;
+		}color;
 	};
 
 	//Create vertex buffer (a 2D triangle)
-	const Vertex VerticesData[] = { {0.0f,0.5f,255,0,0,0},{0.5f,-0.5f,0,255,0,0},{-0.5f,-0.5f,0,0,255,0}	//These vertices, when taken in this order, are clockwise winded. So, the pipeline won't do back face culling for this.
+	//We have taken 6 vertices here, to experiment with a hexagon using indexed drawing
+	const Vertex VerticesData[] = { {0.0f,0.5f,255,0,0,0},{0.5f,-0.5f,0,255,0,0},{-0.5f,-0.5f,0,0,255,0},
+		{-0.3f,0.3f,0,255,0,0},{0.3f,0.3f,0,0,255,0},{0.0f,-0.8f,255,0,0,0} //These vertices, when taken in this order, are clockwise winded. So, the pipeline won't do back face culling for this.
 	//{0.5,0.5},{-0.5,0.5} ,{0.0,-0.5}	//These vertices are binded in anticlockwise direction. Hence, BackFaceCulling is done by pipeline by default.
 	};
 	wrl::ComPtr<ID3D11Buffer> pVertexBuffer;
@@ -151,12 +158,40 @@ void GraphicsSetup::DrawTriangleTest()
 
 	GFX_THROW_INFO(pDevice->CreateBuffer(&bd, &sd, &pVertexBuffer));
 
+	
+
 	//Bind VertexBuffer to pipeline
 	const UINT stride = sizeof(Vertex);
 	const UINT offset = 0u;
 	//IASetVertexBuffers() sets the VertexBuffer.
 	//Using this single function, we can set multiple vertex buffers.
 	pContext->IASetVertexBuffers(0u,1u,pVertexBuffer.GetAddressOf(),&stride,&offset); //The 2 initial letters correspond to the stage in the pipeline. IA stands for Input Assembler.
+
+	//Create Index Buffer
+	const unsigned short indices[] =	//Indices are 16 bit by default. So we take unsigned short.
+	{
+		0,1,2,
+		0,2,3,
+		0,4,1,
+		2,1,5
+	};
+	wrl::ComPtr<ID3D11Buffer> pIndexBuffer;
+	D3D11_BUFFER_DESC IndexBufferDesc = {};
+	IndexBufferDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
+	IndexBufferDesc.Usage = D3D11_USAGE_DEFAULT;
+	IndexBufferDesc.CPUAccessFlags = 0u;
+	IndexBufferDesc.MiscFlags = 0u;
+	IndexBufferDesc.ByteWidth = sizeof(indices);
+	IndexBufferDesc.StructureByteStride = sizeof(unsigned short);
+
+	D3D11_SUBRESOURCE_DATA IndexSubResourceDat = {};
+
+	IndexSubResourceDat.pSysMem = indices;
+
+	GFX_THROW_INFO(pDevice->CreateBuffer(&IndexBufferDesc, &IndexSubResourceDat, &pIndexBuffer));
+
+	//Bind IndexBuffer to pipeline
+	pContext->IASetIndexBuffer(pIndexBuffer.Get(), DXGI_FORMAT_R16_UINT, 0u);
 	
 	/*We create Pixel Buffer first then Vertex Buffer. Because we don't want pBlob data to be overwritten by
 	Pixel Shader Byte Code because the pBlob data consisting of Vertex Shader Byte Code is later on
@@ -223,7 +258,8 @@ void GraphicsSetup::DrawTriangleTest()
 	vport.TopLeftY = 0;
 	pContext->RSSetViewports(1u, &vport);
 	
-	GFX_THROW_INFO_ONLY(pContext->Draw((UINT)std::size(VerticesData), 0u)); //Takes in parameters-> Number of vertices to draw,and the start vertex (vertices numbered as 0,1,2,..)
+	//We use DrawIndexed() to do indexed drawing
+	GFX_THROW_INFO_ONLY(pContext->DrawIndexed((UINT)std::size(indices),0u, 0u)); //Takes in parameters-> Number of vertices to draw,and the start vertex (vertices numbered as 0,1,2,..)
 }
 
 
