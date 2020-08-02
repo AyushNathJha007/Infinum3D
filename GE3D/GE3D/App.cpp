@@ -54,8 +54,11 @@ void App::DoFrame() //Contains top level of the game logic
 {
 	const float c = sin(timer.Peek()) / 2.0f + 0.5f;
 	window.Gfx().ClearBuffer(c, c, 1.0f);
+	//window.SetTitle();
 	/*Test to check Triangle creation*/
-	window.Gfx().DrawTriangleTest(timer.Peek());
+	window.Gfx().DrawTriangleTest(timer.Peek(),
+		window.mouse.GetPosX()/400.0f-1.0f,	//Range mapped to normal device coordinates-> -1.0 to 1.0
+		-window.mouse.GetPosY()/300.0f+1.0f);
 	window.Gfx().EndFrame();
 }
 	

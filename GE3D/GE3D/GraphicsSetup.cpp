@@ -2,6 +2,9 @@
 #include "dxerr.h"
 #include<sstream>
 #include<d3dcompiler.h>
+#include<cmath>
+#include<DirectXMath.h>
+
 
 #pragma comment(lib,"D3DCompiler.lib")	//Can be used to compile shaders at runtime; but we will be using for shader loading function
 #pragma comment(lib,"d3d11.lib")
@@ -23,6 +26,7 @@
 #endif
 
 namespace wrl = Microsoft::WRL;
+namespace dxMath = DirectX;
 /*Function to create DEVICE object*/
 GraphicsSetup::GraphicsSetup(HWND hWnd)
 {
@@ -119,7 +123,7 @@ void GraphicsSetup::ClearBuffer(float red, float green, float blue) noexcept
 }
 
 /*This function is going to be updated for checking vertex transformation via rotation matrix with the help of vertex shader*/
-void GraphicsSetup::DrawTriangleTest(float angle)
+void GraphicsSetup::DrawTriangleTest(float angle, float x, float y)
 {
 	namespace wrl = Microsoft::WRL;
 	HRESULT HR;
@@ -197,19 +201,18 @@ void GraphicsSetup::DrawTriangleTest(float angle)
 	/*We create a constant buffer for Matrix Transformation*/
 	struct ConstantBuffer
 	{
-		struct {
-			float data[4][4];
-		}TransformationMatrix;
+		dxMath::XMMATRIX TransformationMatrix;	//A 4x4 Matrix. But its elements can't be accessed directly, since it is optimized for SIMD
 	};
 
-	const ConstantBuffer constBuffer=	//Rotation Matrix (Z is Rotation Axis)
+	const ConstantBuffer constBuffer =	//Rotation Matrix (Z is Rotation Axis)
 	{
 		{
-			(3.0f/4.0f)*std::cos(angle), std::sin(angle), 0.0f, 0.0f,
-			(3.0f/4.0f)*(-std::sin(angle)), std::cos(angle), 0.0f, 0.0f,
-			0.0f, 0.0f, 1.0f, 0.0f,
-			0.0f, 0.0f, 0.0f, 1.0f
+			dxMath::XMMatrixTranspose(
+			
+			dxMath::XMMatrixRotationZ(angle)*
+				dxMath::XMMatrixScaling(3.0f / 4.0f,1.0f,1.0f)*dxMath::XMMatrixTranslation(x,y,0.0f))
 		}
+		//Matrix from DirectXMath are row major
 		//(3/4) has been multiplied to squeeze our vertices to fit our aspect ratio of 3:4 (600x800).
 	};
 
