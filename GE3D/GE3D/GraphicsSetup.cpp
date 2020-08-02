@@ -8,7 +8,7 @@
 
 //Additional Macros for handling GraphicsSetup exception throw stuff (Now also includes DXGI Info)
 #define GFX_EXCEPT_NOINFO(HR) GraphicsSetup::HRException( __LINE__,__FILE__,(HR) )
-#define GFX_THROW_NOINFO(hrcall) if( FAILED( HR = (hrcall) ) ) throw Graphics::HRException( __LINE__,__FILE__,HR )
+#define GFX_THROW_NOINFO(hrcall) if( FAILED( HR = (hrcall) ) ) throw GraphicsSetup::HRException( __LINE__,__FILE__,HR )
 
 #ifndef NDEBUG	//Additional info messages will be shown, when in debug mode. Else, additional info won't be shown.
 #define GFX_EXCEPT(HR) GraphicsSetup::HRException( __LINE__,__FILE__,(HR),infoManager.GetMessages() )
@@ -118,7 +118,8 @@ void GraphicsSetup::ClearBuffer(float red, float green, float blue) noexcept
 	
 }
 
-void GraphicsSetup::DrawTriangleTest()
+/*This function is going to be updated for checking vertex transformation via rotation matrix with the help of vertex shader*/
+void GraphicsSetup::DrawTriangleTest(float angle)
 {
 	namespace wrl = Microsoft::WRL;
 	HRESULT HR;
@@ -192,7 +193,44 @@ void GraphicsSetup::DrawTriangleTest()
 
 	//Bind IndexBuffer to pipeline
 	pContext->IASetIndexBuffer(pIndexBuffer.Get(), DXGI_FORMAT_R16_UINT, 0u);
-	
+
+	/*We create a constant buffer for Matrix Transformation*/
+	struct ConstantBuffer
+	{
+		struct {
+			float data[4][4];
+		}TransformationMatrix;
+	};
+
+	const ConstantBuffer constBuffer=	//Rotation Matrix (Z is Rotation Axis)
+	{
+		{
+			(3.0f/4.0f)*std::cos(angle), std::sin(angle), 0.0f, 0.0f,
+			(3.0f/4.0f)*(-std::sin(angle)), std::cos(angle), 0.0f, 0.0f,
+			0.0f, 0.0f, 1.0f, 0.0f,
+			0.0f, 0.0f, 0.0f, 1.0f
+		}
+		//(3/4) has been multiplied to squeeze our vertices to fit our aspect ratio of 3:4 (600x800).
+	};
+
+	wrl::ComPtr<ID3D11Buffer> pConstantBuffer;
+	D3D11_BUFFER_DESC ConstantBufferDesc = {};
+	ConstantBufferDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+	ConstantBufferDesc.Usage = D3D11_USAGE_DYNAMIC;	//Using Dynamic, Since constant buffer upates every frame
+	ConstantBufferDesc.CPUAccessFlags =D3D11_CPU_ACCESS_WRITE;	//Since our dynamic resource will be updated every frame by the CPU, we need to give Write permission
+	ConstantBufferDesc.MiscFlags = 0u;
+	ConstantBufferDesc.ByteWidth = sizeof(constBuffer);
+	ConstantBufferDesc.StructureByteStride = 0u;	//Since this isn't an array, like array of vertices, etc
+
+	D3D11_SUBRESOURCE_DATA ConstantSubResourceDat = {};
+
+	ConstantSubResourceDat.pSysMem = &constBuffer;
+
+	GFX_THROW_INFO(pDevice->CreateBuffer(&ConstantBufferDesc, &ConstantSubResourceDat, &pConstantBuffer));
+
+	//Now, we bind Constant Buffer to vertex buffer
+	pContext->VSSetConstantBuffers(0u, 1u, pConstantBuffer.GetAddressOf());
+
 	/*We create Pixel Buffer first then Vertex Buffer. Because we don't want pBlob data to be overwritten by
 	Pixel Shader Byte Code because the pBlob data consisting of Vertex Shader Byte Code is later on
 	used while creation of Input Layout.*/

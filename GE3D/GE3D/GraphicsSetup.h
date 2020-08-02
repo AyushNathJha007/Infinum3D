@@ -52,7 +52,7 @@ public:
 	~GraphicsSetup()=default;
 	void EndFrame(); //This will perform the operation of presenting Back Buffer To Front Buffer(known as flipping)
 	void ClearBuffer(float red, float green, float blue) noexcept;
-	void DrawTriangleTest();
+	void DrawTriangleTest(float angle);
 	
 private:
 #ifndef NDEBUG	//DxgiInfoManager will be used, only when we are in debug mode. In production/release, it won't be used
