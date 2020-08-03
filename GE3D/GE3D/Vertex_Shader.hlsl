@@ -21,10 +21,10 @@ cbuffer CBuf
 	//the .cpp file. So, we now have a column major matrix.
 }
 
-VSOutput main(float2 pos:Position,float3 color:Color)
+VSOutput main(float3 pos:Position,float3 color:Color)
 {
 	VSOutput v;
-	v.pos = mul(float4(pos.x, pos.y, 0.0f, 1.0f),transformMat);
+	v.pos = mul(float4(pos.x, pos.y,pos.z, 1.0f),transformMat);
 	v.color = color;
 	return v;
 }

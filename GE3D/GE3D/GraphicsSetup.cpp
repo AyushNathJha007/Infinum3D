@@ -128,10 +128,11 @@ void GraphicsSetup::DrawTriangleTest(float angle, float x, float y)
 	namespace wrl = Microsoft::WRL;
 	HRESULT HR;
 	//Index Drawing->Specify the set of vertices once, then use a set of indexes to select them in some order to draw stuff
-	struct Vertex {	//Structure of a vertex we'll be using(x and y coordinates)
+	struct Vertex {	//Structure of a vertex we'll be using(x,y and z coordinates)
 		struct {
 			float x;
 			float y;
+			float z;
 		}pos;
 		struct {
 			unsigned char r;
@@ -143,8 +144,14 @@ void GraphicsSetup::DrawTriangleTest(float angle, float x, float y)
 
 	//Create vertex buffer (a 2D triangle)
 	//We have taken 6 vertices here, to experiment with a hexagon using indexed drawing
-	const Vertex VerticesData[] = { {0.0f,0.5f,255,0,0,0},{0.5f,-0.5f,0,255,0,0},{-0.5f,-0.5f,0,0,255,0},
-		{-0.3f,0.3f,0,255,0,0},{0.3f,0.3f,0,0,255,0},{0.0f,-0.8f,255,0,0,0} //These vertices, when taken in this order, are clockwise winded. So, the pipeline won't do back face culling for this.
+	const Vertex VerticesData[] = { {-1.0,-1.0,-1.0, 0, 255, 0},
+		{1.0,-1.0,-1.0, 255, 0, 0},
+		{-1.0,1.0,-1.0,0,0,255},
+		{1.0,1.0,-1.0, 0, 255, 0},
+		{-1.0,-1.0,1.0, 255,0,0},
+		{1.0,-1.0,1.0,0,255,0},
+		{-1.0,1.0,1.0, 0,0,255},
+		{1.0,1.0,1.0, 255,0,0},//These vertices, when taken in this order, are clockwise winded. So, the pipeline won't do back face culling for this.
 	//{0.5,0.5},{-0.5,0.5} ,{0.0,-0.5}	//These vertices are binded in anticlockwise direction. Hence, BackFaceCulling is done by pipeline by default.
 	};
 	wrl::ComPtr<ID3D11Buffer> pVertexBuffer;
@@ -175,10 +182,12 @@ void GraphicsSetup::DrawTriangleTest(float angle, float x, float y)
 	//Create Index Buffer
 	const unsigned short indices[] =	//Indices are 16 bit by default. So we take unsigned short.
 	{
-		0,1,2,
-		0,2,3,
-		0,4,1,
-		2,1,5
+		0,2,1, 2,3,1,
+		1,3,5, 3,7,5,
+		2,6,3, 3,6,7,
+		4,5,7, 4,7,6,
+		0,4,2, 2,4,6,
+		0,1,4, 1,5,4
 	};
 	wrl::ComPtr<ID3D11Buffer> pIndexBuffer;
 	D3D11_BUFFER_DESC IndexBufferDesc = {};
@@ -210,7 +219,7 @@ void GraphicsSetup::DrawTriangleTest(float angle, float x, float y)
 			dxMath::XMMatrixTranspose(
 			
 			dxMath::XMMatrixRotationZ(angle)*
-				dxMath::XMMatrixScaling(3.0f / 4.0f,1.0f,1.0f)*dxMath::XMMatrixTranslation(x,y,0.0f))
+				dxMath::XMMatrixScaling(3.0f / 4.0f,1.0f,1.0f)*dxMath::XMMatrixRotationX(angle)*dxMath::XMMatrixTranslation(x,y,4.0f)*dxMath::XMMatrixPerspectiveLH(1.0f,1.0f,0.5f,10.0f))
 		}
 		//Matrix from DirectXMath are row major
 		//(3/4) has been multiplied to squeeze our vertices to fit our aspect ratio of 3:4 (600x800).
@@ -267,12 +276,12 @@ void GraphicsSetup::DrawTriangleTest(float angle, float x, float y)
 	//pixel shader, they can be lumped as a single entity, depicting position. So, only one member.
 	const D3D11_INPUT_ELEMENT_DESC ied[] =
 	{
-		{"Position",0,DXGI_FORMAT_R32G32_FLOAT,0,0,D3D11_INPUT_PER_VERTEX_DATA,0}, //Tells the position of the vertex
+		{"Position",0,DXGI_FORMAT_R32G32B32_FLOAT,0,0,D3D11_INPUT_PER_VERTEX_DATA,0}, //Tells the position of the vertex
 		//The first two parameters represent Semantic name and Semantic Index.
 		//For this, refer to the Vertex Shader hlsl file. We have only one semantic named
 		//"Position" and it is at index 0.
-		//The third parameter tells us the type of data is in the element. R32G32_FLOAT tells
-		//that we have two 32 bit floats (x and y).
+		//The third parameter tells us the type of data is in the element. R32G32B32_FLOAT tells
+		//that we have three 32 bit floats (x,y and z).
 		{"Color",0,DXGI_FORMAT_R8G8B8A8_UNORM,0,D3D11_APPEND_ALIGNED_ELEMENT,D3D11_INPUT_PER_VERTEX_DATA,0}, //Tells the color of the vertex
 		//UNORM normalizes the value to full range of input type
 		//i.e, an input of 255, when converted to float will represent 1.0 and vice versa
