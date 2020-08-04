@@ -1,16 +1,7 @@
 //A shader is kinda a pure function
 
 //Please note that color here in Vertex Shader is binded to register zero->
-//The color should be binded to reg zero also in Pixel Shader.
-//Otherwise, it will throw error. So that's why in this struct, we first add color and then position
-//to match compatibility with Pixel Shader.
-
-struct VSOutput
-{
-	float3 color:Color;
-	float4 pos:SV_Position;
-	
-};
+//Our vertex shader doesn't take color now.
 
 /*Note:- HLSL files expect our Matrix to be column major*/
 //Defines ConstantBuffer for use by this vertex shader
@@ -21,10 +12,9 @@ cbuffer CBuf
 	//the .cpp file. So, we now have a column major matrix.
 }
 
-VSOutput main(float3 pos:Position,float3 color:Color)
+float4 main(float3 pos:Position):SV_Position
 {
-	VSOutput v;
-	v.pos = mul(float4(pos.x, pos.y,pos.z, 1.0f),transformMat);
-	v.color = color;
-	return v;
+	
+	return mul(float4(pos.x, pos.y,pos.z, 1.0f),transformMat);
+	
 }

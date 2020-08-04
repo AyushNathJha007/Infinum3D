@@ -1,9 +1,9 @@
-//Pixel Shader sets the color of the pixel on the raster
-//The rasterizer determines the pixel positions; The pixel shader determines the colors of each of those pixels.
-//It usually doesn't need the coordinate of a pixel in screen space to accomplish this task.
-//Hence, the function for pixel shader has no input values like position of pixel.
-
-float4 main(float3 color:Color) : SV_Target //SystemValue_Target-> this means Render Target
+cbuffer ConstBuf
 {
-	return float4(color,1.0f); //Output the color-> RGBA
+	float4 faceColors[6];
+};
+
+float4 main(uint TriangleID:SV_PrimitiveID) : SV_Target //This will tell the pipeline to generate a unique ID for every triangle, which will be passed into pixel shader
+{
+	return faceColors[TriangleID/2]; //Two triangles make one face of the cube
 }

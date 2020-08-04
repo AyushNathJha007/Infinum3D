@@ -122,7 +122,9 @@ void GraphicsSetup::ClearBuffer(float red, float green, float blue) noexcept
 	
 }
 
-/*This function is going to be updated for checking vertex transformation via rotation matrix with the help of vertex shader*/
+/*This function is being edited to display a cube having solid colours on each of its face. To do that, we will
+generate a triangle ID for each triangle and use that to look into an array of colours, which will then determine which triangle
+will have which colour.*/
 void GraphicsSetup::DrawTriangleTest(float angle, float x, float y)
 {
 	namespace wrl = Microsoft::WRL;
@@ -134,24 +136,25 @@ void GraphicsSetup::DrawTriangleTest(float angle, float x, float y)
 			float y;
 			float z;
 		}pos;
-		struct {
+		//We are no longer passing in color for each vertex
+		/*struct {
 			unsigned char r;
 			unsigned char g;
 			unsigned char b;
 			unsigned char a;
-		}color;
+		}color;*/
 	};
 
 	//Create vertex buffer (a 2D triangle)
 	//We have taken 6 vertices here, to experiment with a hexagon using indexed drawing
-	const Vertex VerticesData[] = { {-1.0,-1.0,-1.0, 0, 255, 0},
-		{1.0,-1.0,-1.0, 255, 0, 0},
-		{-1.0,1.0,-1.0,0,0,255},
-		{1.0,1.0,-1.0, 0, 255, 0},
-		{-1.0,-1.0,1.0, 255,0,0},
-		{1.0,-1.0,1.0,0,255,0},
-		{-1.0,1.0,1.0, 0,0,255},
-		{1.0,1.0,1.0, 255,0,0},//These vertices, when taken in this order, are clockwise winded. So, the pipeline won't do back face culling for this.
+	const Vertex VerticesData[] = { {-1.0,-1.0,-1.0},
+		{1.0,-1.0,-1.0},
+		{-1.0,1.0,-1.0},
+		{1.0,1.0,-1.0},
+		{-1.0,-1.0,1.0},
+		{1.0,-1.0,1.0},
+		{-1.0,1.0,1.0},
+		{1.0,1.0,1.0},//These vertices, when taken in this order, are clockwise winded. So, the pipeline won't do back face culling for this.
 	//{0.5,0.5},{-0.5,0.5} ,{0.0,-0.5}	//These vertices are binded in anticlockwise direction. Hence, BackFaceCulling is done by pipeline by default.
 	};
 	wrl::ComPtr<ID3D11Buffer> pVertexBuffer;
@@ -243,6 +246,46 @@ void GraphicsSetup::DrawTriangleTest(float angle, float x, float y)
 	//Now, we bind Constant Buffer to vertex buffer
 	pContext->VSSetConstantBuffers(0u, 1u, pConstantBuffer.GetAddressOf());
 
+	//A constant buffer which will be bound to pixel shader and will hold the array of colors.
+	struct ConstantBuffer2
+	{
+		struct
+		{
+			float r;
+			float g;
+			float b;
+			float a;
+		}faceColors[6];
+	};
+
+	const ConstantBuffer2 constBuffer2=
+	{
+		{
+		{1.0f,0.0f,1.0f},
+		{1.0f,0.0f,0.0f},
+		{0.0f,1.0f,0.0f},
+		{0.0f,0.0f,1.0f},
+		{1.0f,1.0f,0.0f},
+		{1.0f,0.0f,1.0f}
+		}
+	};
+	wrl::ComPtr<ID3D11Buffer> pConstantBuffer2;
+	D3D11_BUFFER_DESC ConstantBuffer2Desc = {};
+	ConstantBuffer2Desc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+	ConstantBuffer2Desc.Usage = D3D11_USAGE_DEFAULT;	
+	ConstantBuffer2Desc.CPUAccessFlags = 0u;
+	ConstantBuffer2Desc.MiscFlags = 0u;
+	ConstantBuffer2Desc.ByteWidth = sizeof(constBuffer2);
+	ConstantBuffer2Desc.StructureByteStride = 0u;	//Since this isn't an array, like array of vertices, etc
+
+	D3D11_SUBRESOURCE_DATA ConstantSubResource2Dat = {};
+
+	ConstantSubResource2Dat.pSysMem = &constBuffer2;
+
+	GFX_THROW_INFO(pDevice->CreateBuffer(&ConstantBuffer2Desc, &ConstantSubResource2Dat, &pConstantBuffer2));
+
+	pContext->PSSetConstantBuffers(0u, 1u, pConstantBuffer2.GetAddressOf());
+
 	/*We create Pixel Buffer first then Vertex Buffer. Because we don't want pBlob data to be overwritten by
 	Pixel Shader Byte Code because the pBlob data consisting of Vertex Shader Byte Code is later on
 	used while creation of Input Layout.*/
@@ -282,9 +325,7 @@ void GraphicsSetup::DrawTriangleTest(float angle, float x, float y)
 		//"Position" and it is at index 0.
 		//The third parameter tells us the type of data is in the element. R32G32B32_FLOAT tells
 		//that we have three 32 bit floats (x,y and z).
-		{"Color",0,DXGI_FORMAT_R8G8B8A8_UNORM,0,D3D11_APPEND_ALIGNED_ELEMENT,D3D11_INPUT_PER_VERTEX_DATA,0}, //Tells the color of the vertex
-		//UNORM normalizes the value to full range of input type
-		//i.e, an input of 255, when converted to float will represent 1.0 and vice versa
+		
 	};
 
 	GFX_THROW_INFO(pDevice->CreateInputLayout(ied, (UINT)std::size(ied), pBlob->GetBufferPointer(), pBlob->GetBufferSize(), &pInputLayout));
