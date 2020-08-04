@@ -89,7 +89,49 @@ GraphicsSetup::GraphicsSetup(HWND hWnd)
 		nullptr,
 		&pTarget
 	));
-	
+
+	//We are going to create and bind the z-buffer.
+	//Depth buffer is kind of like a frame buffer. Difference being that the frame buffer stores colours,
+	//while depth buffer stores depth values.
+	//When we create swap chain, frame buffer is created and binded automatically.
+	//But for depth buffer, we need to create the texture ourselves and then bind it to the output merger.
+	//So first, we need to create and bind the state. Then, we need to create and bind the texture.
+
+	D3D11_DEPTH_STENCIL_DESC DepthStencilDesc = {}; //We will be only using Depth Buffer. Since depth buffer and stencil buffer share a common space, so STENCIL keyword appears here.
+	DepthStencilDesc.DepthEnable = TRUE;
+	DepthStencilDesc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
+	DepthStencilDesc.DepthFunc = D3D11_COMPARISON_LESS; //This means that anything whose value will be less on z axis (in our case), that pixel will override what was previously written
+	wrl::ComPtr<ID3D11DepthStencilState>pDepthStencilState;
+	GFX_THROW_INFO(pDevice->CreateDepthStencilState(&DepthStencilDesc, &pDepthStencilState));
+
+	//Now we bind depth state
+	pContext->OMSetDepthStencilState(pDepthStencilState.Get(), 1u);//Second parameter won't matter since it is used for stencil stuff.
+
+	//Step 2-> Create Depth Stencil Texture
+	wrl::ComPtr<ID3D11Texture2D> pDepthStencilTexture;
+	D3D11_TEXTURE2D_DESC DepthStencilTextureDesc = {};
+	//Width and height should match swap chain vals
+	DepthStencilTextureDesc.Width = 800u;
+	DepthStencilTextureDesc.Height = 600u;
+	DepthStencilTextureDesc.MipLevels = 1u;	//We need a single mipmap. (To study later)
+	DepthStencilTextureDesc.ArraySize = 1u;	//We need a single element array of texture. (We can create multiple element array though)
+	DepthStencilTextureDesc.Format = DXGI_FORMAT_D32_FLOAT; //D32 is a special 32 bit floating point value provided for depth.
+	//Below stuffs are for anti-aliasing
+	DepthStencilTextureDesc.SampleDesc.Count = 1u;
+	DepthStencilTextureDesc.SampleDesc.Quality = 0u;
+	DepthStencilTextureDesc.Usage = D3D11_USAGE_DEFAULT;
+	DepthStencilTextureDesc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
+	GFX_THROW_INFO(pDevice->CreateTexture2D(&DepthStencilTextureDesc, nullptr, &pDepthStencilTexture));
+
+	//Create Depth Stencil Texture View
+	D3D11_DEPTH_STENCIL_VIEW_DESC DepthStencilViewDesc = {};
+	DepthStencilViewDesc.Format = DXGI_FORMAT_D32_FLOAT;
+	DepthStencilViewDesc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
+	DepthStencilViewDesc.Texture2D.MipSlice = 0u;
+	GFX_THROW_INFO(pDevice->CreateDepthStencilView(pDepthStencilTexture.Get(), &DepthStencilViewDesc, &pDepthStencilView));
+
+	//Now we bind depth stencil view to Output merger->
+	pContext->OMSetRenderTargets(1u, pTarget.GetAddressOf(), pDepthStencilView.Get());
 }
 
 /*Destructor deleted-> No longer needed*/
@@ -119,13 +161,16 @@ void GraphicsSetup::ClearBuffer(float red, float green, float blue) noexcept
 	
 		const float color[] = { red,green,blue,1.0f };
 		pContext->ClearRenderTargetView(pTarget.Get(), color);
+		//Every time we call a new frame, we also need to clear the depth buffer. Doing it now below
+		pContext->ClearDepthStencilView(pDepthStencilView.Get(), D3D11_CLEAR_DEPTH, 1.0f, 0u);
+		//Since the maximum depth of our system is 1.0f, we set the third parameter as 1.0f
 	
 }
 
 /*This function is being edited to display a cube having solid colours on each of its face. To do that, we will
 generate a triangle ID for each triangle and use that to look into an array of colours, which will then determine which triangle
 will have which colour.*/
-void GraphicsSetup::DrawTriangleTest(float angle, float x, float y)
+void GraphicsSetup::DrawTriangleTest(float angle, float x, float z)
 {
 	namespace wrl = Microsoft::WRL;
 	HRESULT HR;
@@ -222,7 +267,7 @@ void GraphicsSetup::DrawTriangleTest(float angle, float x, float y)
 			dxMath::XMMatrixTranspose(
 			
 			dxMath::XMMatrixRotationZ(angle)*
-				dxMath::XMMatrixScaling(3.0f / 4.0f,1.0f,1.0f)*dxMath::XMMatrixRotationX(angle)*dxMath::XMMatrixTranslation(x,y,4.0f)*dxMath::XMMatrixPerspectiveLH(1.0f,1.0f,0.5f,10.0f))
+				dxMath::XMMatrixScaling(3.0f / 4.0f,1.0f,1.0f)*dxMath::XMMatrixRotationX(angle)*dxMath::XMMatrixTranslation(x,0.0f,z+4.0f)*dxMath::XMMatrixPerspectiveLH(1.0f,1.0f,0.5f,10.0f))
 		}
 		//Matrix from DirectXMath are row major
 		//(3/4) has been multiplied to squeeze our vertices to fit our aspect ratio of 3:4 (600x800).
@@ -266,7 +311,7 @@ void GraphicsSetup::DrawTriangleTest(float angle, float x, float y)
 		{0.0f,1.0f,0.0f},
 		{0.0f,0.0f,1.0f},
 		{1.0f,1.0f,0.0f},
-		{1.0f,0.0f,1.0f}
+		{0.0f,1.0f,1.0f}
 		}
 	};
 	wrl::ComPtr<ID3D11Buffer> pConstantBuffer2;
@@ -333,8 +378,8 @@ void GraphicsSetup::DrawTriangleTest(float angle, float x, float y)
 	//Bind Vertex Layout to our pipeline
 	pContext->IASetInputLayout(pInputLayout.Get());
 
-	//The below function binds the render target
-	pContext->OMSetRenderTargets(1u, pTarget.GetAddressOf(), nullptr);
+	//The below function binds the render target <Commented out since we are already binding it while binding Depth Stencil view now>
+	//pContext->OMSetRenderTargets(1u, pTarget.GetAddressOf(), nullptr);
 
 	//The below function sets the primitive topology to triangle vertices
 	pContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);

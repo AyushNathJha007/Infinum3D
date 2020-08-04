@@ -56,9 +56,15 @@ void App::DoFrame() //Contains top level of the game logic
 	window.Gfx().ClearBuffer(c, c, 1.0f);
 	//window.SetTitle();
 	/*Test to check Triangle creation*/
+	window.Gfx().DrawTriangleTest(-timer.Peek(),
+		0.0f,	
+		0.0f);
 	window.Gfx().DrawTriangleTest(timer.Peek(),
 		window.mouse.GetPosX()/400.0f-1.0f,	//Range mapped to normal device coordinates-> -1.0 to 1.0
 		-window.mouse.GetPosY()/300.0f+1.0f);
+	//Here above, the order of drawing matters. Since the cube which we are moving with the mouse is drawn
+	//after the first static cube, the second cube always appears over the top of the first cube, regardless of its z offset.
+	//So, to address this issue, depth buffering is used.
 	window.Gfx().EndFrame();
 }
 	

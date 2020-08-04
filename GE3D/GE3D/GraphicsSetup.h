@@ -63,4 +63,5 @@ private:
 	Microsoft::WRL::ComPtr<IDXGISwapChain> pSwap;
 	Microsoft::WRL::ComPtr<ID3D11DeviceContext> pContext; //Used for configuring a pipeline in exceuting or issuing rendering commands
 	Microsoft::WRL::ComPtr<ID3D11RenderTargetView> pTarget;
+	Microsoft::WRL::ComPtr<ID3D11DepthStencilView> pDepthStencilView;	//In order to bind texture to the pipeline, we need to get a view on the texture
 };
