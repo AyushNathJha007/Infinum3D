@@ -148,11 +148,13 @@
     <ClInclude Include="dxerr.h" />
     <ClInclude Include="DxgiInfoManager.h" />
     <ClInclude Include="GraphicsSetup.h" />
+    <ClInclude Include="GraphicsSetupThrowsMacro.h" />
     <ClInclude Include="InfinumTimer.h" />
     <ClInclude Include="Input_Keyboard.h" />
     <ClInclude Include="Input_Mouse.h" />
     <ClInclude Include="resource.h" />
     <ClInclude Include="Window.h" />
+    <ClInclude Include="WindowsExcepThrowsMacro.h" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="GE3D.rc" />

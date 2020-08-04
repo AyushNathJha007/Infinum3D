@@ -3,10 +3,11 @@
 #include "GraphicsSetup.h"
 #include <dxgidebug.h>
 #include <memory>
+#include "GraphicsSetupThrowsMacro.h"
 
 #pragma comment(lib, "dxguid.lib")
 
-#define GFX_THROW_NOINFO(hrcall) if( FAILED( hr = (hrcall) ) ) throw GraphicsSetup::HRException( __LINE__,__FILE__,hr )
+
 
 //DXGI_DEBUG_ALL gives all debug messages
 
@@ -31,7 +32,7 @@ DxgiInfoManager::DxgiInfoManager()
 		throw CHWND_LAST_EXCEPT();
 	}
 
-	HRESULT hr;
+	HRESULT HR;
 	GFX_THROW_NOINFO(DxgiGetDebugInterface(__uuidof(IDXGIInfoQueue), (&pDxgiInfoQueue))); //Call The function to get the interface
 }
 
@@ -52,7 +53,7 @@ std::vector<std::string> DxgiInfoManager::GetMessages() const
 	//Loop through the messages in the queue(fron next to end)
 	for (auto i = next; i < end; i++)
 	{
-		HRESULT hr;
+		HRESULT HR;
 		SIZE_T messageLength;
 		// get the size of message i in bytes
 		GFX_THROW_NOINFO(pDxgiInfoQueue->GetMessage(DXGI_DEBUG_ALL, i, nullptr, &messageLength)); //This will fill the messageLength with the length of message at that index
