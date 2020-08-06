@@ -118,6 +118,16 @@ GraphicsSetup::GraphicsSetup(HWND hWnd)
 
 	//Now we bind depth stencil view to Output merger->
 	pContext->OMSetRenderTargets(1u, pTarget.GetAddressOf(), pDepthStencilView.Get());
+
+	//We need to configure the viewport for rasterizing
+	D3D11_VIEWPORT vport;
+	vport.Width = 800.0f;
+	vport.Height = 600.0f;
+	vport.MinDepth = 0.0f;
+	vport.MaxDepth = 1.0f;
+	vport.TopLeftX = 0.0f;
+	vport.TopLeftY = 0.0f;
+	pContext->RSSetViewports(1u, &vport);
 }
 
 /*Destructor deleted-> No longer needed*/
@@ -156,234 +166,20 @@ void GraphicsSetup::ClearBuffer(float red, float green, float blue) noexcept
 /*This function is being edited to display a cube having solid colours on each of its face. To do that, we will
 generate a triangle ID for each triangle and use that to look into an array of colours, which will then determine which triangle
 will have which colour.*/
-void GraphicsSetup::DrawTriangleTest(float angle, float x, float z)
+void GraphicsSetup::DrawIndexed(UINT count) noexcept(!IS_DEBUG)
 {
-	namespace wrl = Microsoft::WRL;
-	HRESULT HR;
-	//Index Drawing->Specify the set of vertices once, then use a set of indexes to select them in some order to draw stuff
-	struct Vertex {	//Structure of a vertex we'll be using(x,y and z coordinates)
-		struct {
-			float x;
-			float y;
-			float z;
-		}pos;
-		//We are no longer passing in color for each vertex
-		/*struct {
-			unsigned char r;
-			unsigned char g;
-			unsigned char b;
-			unsigned char a;
-		}color;*/
-	};
-
-	//Create vertex buffer (a 2D triangle)
-	//We have taken 6 vertices here, to experiment with a hexagon using indexed drawing
-	const Vertex VerticesData[] = { {-1.0,-1.0,-1.0},
-		{1.0,-1.0,-1.0},
-		{-1.0,1.0,-1.0},
-		{1.0,1.0,-1.0},
-		{-1.0,-1.0,1.0},
-		{1.0,-1.0,1.0},
-		{-1.0,1.0,1.0},
-		{1.0,1.0,1.0},//These vertices, when taken in this order, are clockwise winded. So, the pipeline won't do back face culling for this.
-	//{0.5,0.5},{-0.5,0.5} ,{0.0,-0.5}	//These vertices are binded in anticlockwise direction. Hence, BackFaceCulling is done by pipeline by default.
-	};
-	wrl::ComPtr<ID3D11Buffer> pVertexBuffer;
-	D3D11_BUFFER_DESC bd = {};
-
-	bd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-	bd.Usage = D3D11_USAGE_DEFAULT;
-	bd.CPUAccessFlags = 0u;
-	bd.MiscFlags = 0u;
-	bd.ByteWidth = sizeof(VerticesData);
-	bd.StructureByteStride = sizeof(Vertex);
-
-	D3D11_SUBRESOURCE_DATA sd = {};
-
-	sd.pSysMem = VerticesData;
-
-	GFX_THROW_INFO(pDevice->CreateBuffer(&bd, &sd, &pVertexBuffer));
-
-	
-
-	//Bind VertexBuffer to pipeline
-	const UINT stride = sizeof(Vertex);
-	const UINT offset = 0u;
-	//IASetVertexBuffers() sets the VertexBuffer.
-	//Using this single function, we can set multiple vertex buffers.
-	pContext->IASetVertexBuffers(0u,1u,pVertexBuffer.GetAddressOf(),&stride,&offset); //The 2 initial letters correspond to the stage in the pipeline. IA stands for Input Assembler.
-
-	//Create Index Buffer
-	const unsigned short indices[] =	//Indices are 16 bit by default. So we take unsigned short.
-	{
-		0,2,1, 2,3,1,
-		1,3,5, 3,7,5,
-		2,6,3, 3,6,7,
-		4,5,7, 4,7,6,
-		0,4,2, 2,4,6,
-		0,1,4, 1,5,4
-	};
-	wrl::ComPtr<ID3D11Buffer> pIndexBuffer;
-	D3D11_BUFFER_DESC IndexBufferDesc = {};
-	IndexBufferDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
-	IndexBufferDesc.Usage = D3D11_USAGE_DEFAULT;
-	IndexBufferDesc.CPUAccessFlags = 0u;
-	IndexBufferDesc.MiscFlags = 0u;
-	IndexBufferDesc.ByteWidth = sizeof(indices);
-	IndexBufferDesc.StructureByteStride = sizeof(unsigned short);
-
-	D3D11_SUBRESOURCE_DATA IndexSubResourceDat = {};
-
-	IndexSubResourceDat.pSysMem = indices;
-
-	GFX_THROW_INFO(pDevice->CreateBuffer(&IndexBufferDesc, &IndexSubResourceDat, &pIndexBuffer));
-
-	//Bind IndexBuffer to pipeline
-	pContext->IASetIndexBuffer(pIndexBuffer.Get(), DXGI_FORMAT_R16_UINT, 0u);
-
-	/*We create a constant buffer for Matrix Transformation*/
-	struct ConstantBuffer
-	{
-		dxMath::XMMATRIX TransformationMatrix;	//A 4x4 Matrix. But its elements can't be accessed directly, since it is optimized for SIMD
-	};
-
-	const ConstantBuffer constBuffer =	//Rotation Matrix (Z is Rotation Axis)
-	{
-		{
-			dxMath::XMMatrixTranspose(
-			
-			dxMath::XMMatrixRotationZ(angle)*
-				dxMath::XMMatrixScaling(3.0f / 4.0f,1.0f,1.0f)*dxMath::XMMatrixRotationX(angle)*dxMath::XMMatrixTranslation(x,0.0f,z+4.0f)*dxMath::XMMatrixPerspectiveLH(1.0f,1.0f,0.5f,10.0f))
-		}
-		//Matrix from DirectXMath are row major
-		//(3/4) has been multiplied to squeeze our vertices to fit our aspect ratio of 3:4 (600x800).
-	};
-
-	wrl::ComPtr<ID3D11Buffer> pConstantBuffer;
-	D3D11_BUFFER_DESC ConstantBufferDesc = {};
-	ConstantBufferDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
-	ConstantBufferDesc.Usage = D3D11_USAGE_DYNAMIC;	//Using Dynamic, Since constant buffer upates every frame
-	ConstantBufferDesc.CPUAccessFlags =D3D11_CPU_ACCESS_WRITE;	//Since our dynamic resource will be updated every frame by the CPU, we need to give Write permission
-	ConstantBufferDesc.MiscFlags = 0u;
-	ConstantBufferDesc.ByteWidth = sizeof(constBuffer);
-	ConstantBufferDesc.StructureByteStride = 0u;	//Since this isn't an array, like array of vertices, etc
-
-	D3D11_SUBRESOURCE_DATA ConstantSubResourceDat = {};
-
-	ConstantSubResourceDat.pSysMem = &constBuffer;
-
-	GFX_THROW_INFO(pDevice->CreateBuffer(&ConstantBufferDesc, &ConstantSubResourceDat, &pConstantBuffer));
-
-	//Now, we bind Constant Buffer to vertex buffer
-	pContext->VSSetConstantBuffers(0u, 1u, pConstantBuffer.GetAddressOf());
-
-	//A constant buffer which will be bound to pixel shader and will hold the array of colors.
-	struct ConstantBuffer2
-	{
-		struct
-		{
-			float r;
-			float g;
-			float b;
-			float a;
-		}faceColors[6];
-	};
-
-	const ConstantBuffer2 constBuffer2=
-	{
-		{
-		{1.0f,0.0f,1.0f},
-		{1.0f,0.0f,0.0f},
-		{0.0f,1.0f,0.0f},
-		{0.0f,0.0f,1.0f},
-		{1.0f,1.0f,0.0f},
-		{0.0f,1.0f,1.0f}
-		}
-	};
-	wrl::ComPtr<ID3D11Buffer> pConstantBuffer2;
-	D3D11_BUFFER_DESC ConstantBuffer2Desc = {};
-	ConstantBuffer2Desc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
-	ConstantBuffer2Desc.Usage = D3D11_USAGE_DEFAULT;	
-	ConstantBuffer2Desc.CPUAccessFlags = 0u;
-	ConstantBuffer2Desc.MiscFlags = 0u;
-	ConstantBuffer2Desc.ByteWidth = sizeof(constBuffer2);
-	ConstantBuffer2Desc.StructureByteStride = 0u;	//Since this isn't an array, like array of vertices, etc
-
-	D3D11_SUBRESOURCE_DATA ConstantSubResource2Dat = {};
-
-	ConstantSubResource2Dat.pSysMem = &constBuffer2;
-
-	GFX_THROW_INFO(pDevice->CreateBuffer(&ConstantBuffer2Desc, &ConstantSubResource2Dat, &pConstantBuffer2));
-
-	pContext->PSSetConstantBuffers(0u, 1u, pConstantBuffer2.GetAddressOf());
-
-	/*We create Pixel Buffer first then Vertex Buffer. Because we don't want pBlob data to be overwritten by
-	Pixel Shader Byte Code because the pBlob data consisting of Vertex Shader Byte Code is later on
-	used while creation of Input Layout.*/
-
-	//Create Pixel Buffer
-	wrl::ComPtr<ID3D11PixelShader> pPixelShader;
-	wrl::ComPtr<ID3DBlob> pBlob;
-	GFX_THROW_INFO(D3DReadFileToBlob(L"Pixel_Shader.cso", &pBlob));	//.cso -> Compiled Shader Object
-	GFX_THROW_INFO(pDevice->CreatePixelShader(pBlob->GetBufferPointer(), pBlob->GetBufferSize(), nullptr, &pPixelShader));
-
-	//Bind the Pixel Shader to the pipeline
-	pContext->PSSetShader(pPixelShader.Get(), nullptr, 0u);
-
-	//Create Vertex Buffer
-	wrl::ComPtr<ID3D11VertexShader> pVertexShader;
-	
-	GFX_THROW_INFO(D3DReadFileToBlob(L"Vertex_Shader.cso", &pBlob));	//.cso -> Compiled Shader Object
-	GFX_THROW_INFO(pDevice->CreateVertexShader(pBlob->GetBufferPointer(), pBlob->GetBufferSize(), nullptr, &pVertexShader));
-
-	//Bind the Vertex Shader to the pipeline
-	pContext->VSSetShader(pVertexShader.Get(), nullptr, 0u);
-
-	
-
-	//Create an input layout object for vertex, and bind it to our pipeline
-	wrl::ComPtr<ID3D11InputLayout> pInputLayout;
-	//A descriptor is needed to describe the pInputLayout.
-	//The descriptor is actually an array of descriptors, as shown below. So, every element
-	//in the "Vertex" will have one member as a descriptor in the array of descriptors.
-	//In our case, the "Vertex" has two elements x and y of type float. But in terms of 
-	//pixel shader, they can be lumped as a single entity, depicting position. So, only one member.
-	const D3D11_INPUT_ELEMENT_DESC ied[] =
-	{
-		{"Position",0,DXGI_FORMAT_R32G32B32_FLOAT,0,0,D3D11_INPUT_PER_VERTEX_DATA,0}, //Tells the position of the vertex
-		//The first two parameters represent Semantic name and Semantic Index.
-		//For this, refer to the Vertex Shader hlsl file. We have only one semantic named
-		//"Position" and it is at index 0.
-		//The third parameter tells us the type of data is in the element. R32G32B32_FLOAT tells
-		//that we have three 32 bit floats (x,y and z).
-		
-	};
-
-	GFX_THROW_INFO(pDevice->CreateInputLayout(ied, (UINT)std::size(ied), pBlob->GetBufferPointer(), pBlob->GetBufferSize(), &pInputLayout));
-
-	//Bind Vertex Layout to our pipeline
-	pContext->IASetInputLayout(pInputLayout.Get());
-
-	//The below function binds the render target <Commented out since we are already binding it while binding Depth Stencil view now>
-	//pContext->OMSetRenderTargets(1u, pTarget.GetAddressOf(), nullptr);
-
-	//The below function sets the primitive topology to triangle vertices
-	pContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-
-	//We need to configure the viewport for rasterizing
-	D3D11_VIEWPORT vport;
-	vport.Width = 800;
-	vport.Height = 600;
-	vport.MinDepth = 0;
-	vport.MaxDepth = 1;
-	vport.TopLeftX = 0;
-	vport.TopLeftY = 0;
-	pContext->RSSetViewports(1u, &vport);
-	
-	//We use DrawIndexed() to do indexed drawing
-	GFX_THROW_INFO_ONLY(pContext->DrawIndexed((UINT)std::size(indices),0u, 0u)); //Takes in parameters-> Number of vertices to draw,and the start vertex (vertices numbered as 0,1,2,..)
+	GFX_THROW_INFO_ONLY(pContext->DrawIndexed(count, 0u, 0u));
 }
 
+void GraphicsSetup::SetProjection(DirectX::FXMMATRIX proj) noexcept
+{
+	projection = proj;
+}
+
+DirectX::XMMATRIX GraphicsSetup::GetProjection() const noexcept
+{
+	return projection;
+}
 
 // GraphicsSetup exception stuff
 GraphicsSetup::HRException::HRException(int line, const char * file, HRESULT hr, std::vector<std::string> infoMsgs) noexcept

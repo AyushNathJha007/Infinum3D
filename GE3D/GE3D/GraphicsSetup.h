@@ -5,9 +5,14 @@
 #include <vector>
 #include "DxgiInfoManager.h"
 #include<wrl.h>	//This is where ComPtr resides
+#include <d3dcompiler.h>
+#include <DirectXMath.h>
+#include <memory>
+#include <random>
 
 class GraphicsSetup
 {
+	friend class Bindable;
 public:
 	class Exception : public ANJException //Base GraphicsSetup Exception
 	{
@@ -52,7 +57,10 @@ public:
 	~GraphicsSetup()=default;
 	void EndFrame(); //This will perform the operation of presenting Back Buffer To Front Buffer(known as flipping)
 	void ClearBuffer(float red, float green, float blue) noexcept;
-	void DrawTriangleTest(float angle, float x, float y);
+	//void DrawTriangleTest(float angle, float x, float y);
+	void DrawIndexed(UINT count) noexcept(!IS_DEBUG);
+	void SetProjection(DirectX::FXMMATRIX proj) noexcept;
+	DirectX::XMMATRIX GetProjection() const noexcept;
 	
 private:
 #ifndef NDEBUG	//DxgiInfoManager will be used, only when we are in debug mode. In production/release, it won't be used
@@ -64,4 +72,5 @@ private:
 	Microsoft::WRL::ComPtr<ID3D11DeviceContext> pContext; //Used for configuring a pipeline in exceuting or issuing rendering commands
 	Microsoft::WRL::ComPtr<ID3D11RenderTargetView> pTarget;
 	Microsoft::WRL::ComPtr<ID3D11DepthStencilView> pDepthStencilView;	//In order to bind texture to the pipeline, we need to get a view on the texture
+	DirectX::XMMATRIX projection;
 };
