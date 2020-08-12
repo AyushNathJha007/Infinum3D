@@ -1,4 +1,7 @@
 # Infinum3D
+
+**Note: The application is unstable, since it is currently in development stage.**
+
 **WIP:** An attempt to build a 3D Game Engine from scratch.
 
 This Engine is being built up using the **D3D Version 11** Rendering Pipeline.
